@@ -2,7 +2,7 @@
 
 import unittest
 
-from links import collect_links, collect_message_links, collect_copied_links, _safe_uri
+from links import collect_links, collect_message_links, _safe_uri
 
 
 class FakeHyperlink:
@@ -139,31 +139,23 @@ class LinkDiscoveryTests(unittest.TestCase):
               "https://www.omgubuntu.co.uk/2026/11/global-menu-gnome-extension")],
         )
 
-    def test_copied_named_and_telegram_links(self):
-        copied = (
-            "Расширение глобального меню GNOME Shell\\n"
-            "Читать полностью (https://www.omgubuntu.co.uk/2026/11/global-menu-gnome-extension)\\n"
-            "@linux_potok"
-        )
+    def test_balanced_url_parentheses(self):
+        root = FakeAccessible(text="See (https://en.wikipedia.org/wiki/Foo_(bar)).")
         self.assertEqual(
-            collect_copied_links(copied),
-            [
-                ("Читать полностью",
-                 "https://www.omgubuntu.co.uk/2026/11/global-menu-gnome-extension"),
-                ("@linux_potok", "https://t.me/linux_potok"),
-            ],
+            collect_links(root),
+            [("https://en.wikipedia.org/wiki/Foo_(bar)",
+              "https://en.wikipedia.org/wiki/Foo_(bar)")],
         )
 
-    def test_copied_links_ignore_unsafe_and_duplicates(self):
-        copied = (
-            "Статья (https://example.org/article)\\n"
-            "https://example.org/article\\n"
-            "Опасная (javascript:alert(1))"
-        )
+    def test_dedup_preserves_case_sensitive_path(self):
+        root = FakeAccessible(text="https://Example.org/A https://example.org/A https://example.org/a")
         self.assertEqual(
-            collect_copied_links(copied),
-            [("Статья", "https://example.org/article")],
+            [uri for _, uri in collect_links(root)],
+            ["https://Example.org/A", "https://example.org/a"],
         )
+
+    def test_rejects_http_without_host(self):
+        self.assertIsNone(_safe_uri("https:///missing-host"))
 
     def test_handles_missing_root(self):
         self.assertEqual(collect_links(None), [])
