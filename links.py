@@ -31,14 +31,30 @@ def _get_value(obj, names, *args):
 def _safe_uri(uri):
     if not isinstance(uri, str):
         return None
-    uri = uri.strip().rstrip(".,;:!?)\u005d}")
+    uri = uri.strip().rstrip(".,;:!?\\\"\u2019\u2026")
+    for opening, closing in (("(", ")"), ("[", "]"), ("{", "}")):
+        while uri.endswith(closing) and uri.count(closing) > uri.count(opening):
+            uri = uri[:-1]
     if uri.lower().startswith("www."):
         uri = "https://" + uri
     try:
         scheme = urlparse(uri).scheme.lower()
     except ValueError:
         return None
-    return uri if scheme in _ALLOWED_SCHEMES else None
+    if scheme not in _ALLOWED_SCHEMES:
+        return None
+    parsed = urlparse(uri)
+    if scheme in {"http", "https"} and not parsed.hostname:
+        return None
+    return uri
+
+
+def _dedup_key(uri):
+    """Normalize only case-insensitive URL components, never path or query."""
+    parsed = urlparse(uri)
+    if parsed.scheme.lower() in {"http", "https"}:
+        return (parsed.scheme.lower(), parsed.netloc.lower(), parsed.path, parsed.params, parsed.query, parsed.fragment)
+    return (parsed.scheme.lower(), uri[len(parsed.scheme) + 1:])
 
 
 def _text_links(text):
@@ -56,51 +72,6 @@ def _text_links(text):
         username = match.group(1)
         found.append(("@" + username, "https://t.me/" + username))
     return found
-
-
-_NAMED_LINK_RE = re.compile(
-    r"(?m)^[ \\t]*(?P<label>[^\\n()]{1,160}?)\\s*\\((?P<uri>https?://[^\\s()]+)\\)"
-)
-
-
-def collect_copied_links(text):
-    """Parse Telegram's 'Copy selected as text' representation.
-
-    This never reads or modifies the clipboard; the caller supplies its text.
-    """
-    if not isinstance(text, str):
-        return []
-    found = []
-    seen = set()
-    for match in _NAMED_LINK_RE.finditer(text):
-        # The label is the text since the preceding line break, if present.
-        label = match.group("label").strip()
-        uri = _safe_uri(match.group("uri"))
-        if uri and uri not in seen:
-            seen.add(uri)
-            found.append((label or uri, uri))
-    for label, uri in _text_links(text):
-        if uri not in seen:
-            seen.add(uri)
-            found.append((label, uri))
-    return found
-
-
-def show_links_from_clipboard(controller):
-    """Read already-copied Telegram text without changing clipboard contents."""
-    try:
-        import gi
-        gi.require_version("Gtk", "3.0")
-        from gi.repository import Gtk, Gdk
-        clipboard = Gtk.Clipboard.get(Gdk.SELECTION_CLIPBOARD)
-        text = clipboard.wait_for_text()
-    except Exception:
-        controller.present_message_internal("Could not read clipboard text.")
-        return
-    if not text:
-        controller.present_message_internal("Clipboard contains no text.")
-        return
-    show_link_chooser(collect_copied_links(text), controller)
 
 
 def _open_link(uri):
@@ -253,8 +224,9 @@ def collect_links(root, max_nodes=500):
             candidates = []
 
         for label, uri in candidates:
-            if uri not in seen_uris:
-                seen_uris.add(uri)
+            key = _dedup_key(uri)
+            if key not in seen_uris:
+                seen_uris.add(key)
                 links.append((label or uri, uri))
 
         count = _get_value(obj, ("get_child_count", "getChildCount"))
@@ -283,7 +255,7 @@ def collect_message_links(root):
         # Do not traverse siblings: a container may hold many chat messages.
         links = _object_links(parent)
         if links:
-            return list(dict((uri, (label, uri)) for label, uri in links).values())
+            return list(dict((_dedup_key(uri), (label, uri)) for label, uri in links).values())
         current = parent
     return []
 
