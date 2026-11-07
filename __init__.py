@@ -19,10 +19,6 @@ class TelegramAccessibilityExtension(Extension):
     AUTHOR = "TMFZ223 and contributors"
     WEBSITE = "https://github.com/TMFZ223/orca-telegram-accessibility"
 
-    def __init__(self) -> None:
-        super().__init__()
-        self.mark_as_user_extension("telegram_accessibility")
-
     def _get_commands(self):
         return [
             KeyboardCommand(
