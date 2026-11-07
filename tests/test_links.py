@@ -2,7 +2,7 @@
 
 import unittest
 
-from links import collect_links, collect_message_links, _safe_uri
+from links import collect_links, collect_message_links, collect_copied_links, _safe_uri
 
 
 class FakeHyperlink:
@@ -137,6 +137,32 @@ class LinkDiscoveryTests(unittest.TestCase):
             collect_links(root),
             [("Читать полностью",
               "https://www.omgubuntu.co.uk/2026/11/global-menu-gnome-extension")],
+        )
+
+    def test_copied_named_and_telegram_links(self):
+        copied = (
+            "Расширение глобального меню GNOME Shell\\n"
+            "Читать полностью (https://www.omgubuntu.co.uk/2026/11/global-menu-gnome-extension)\\n"
+            "@linux_potok"
+        )
+        self.assertEqual(
+            collect_copied_links(copied),
+            [
+                ("Читать полностью",
+                 "https://www.omgubuntu.co.uk/2026/11/global-menu-gnome-extension"),
+                ("@linux_potok", "https://t.me/linux_potok"),
+            ],
+        )
+
+    def test_copied_links_ignore_unsafe_and_duplicates(self):
+        copied = (
+            "Статья (https://example.org/article)\\n"
+            "https://example.org/article\\n"
+            "Опасная (javascript:alert(1))"
+        )
+        self.assertEqual(
+            collect_copied_links(copied),
+            [("Статья", "https://example.org/article")],
         )
 
     def test_handles_missing_root(self):
