@@ -4,7 +4,7 @@ from orca.extension import Extension
 from orca import keybindings
 from orca.command import KeyboardCommand
 
-from .links import show_links_for_current_object, show_links_from_clipboard
+from .links import show_links_for_current_object
 from .diagnostics import save_accessibility_report
 
 
@@ -32,18 +32,6 @@ class TelegramAccessibilityExtension(Extension):
                 ),
                 laptop_keybinding=keybindings.KeyBinding(
                     "l", keybindings.ORCA_MODIFIER_MASK
-                ),
-            ),
-            KeyboardCommand(
-                "telegram_list_copied_links",
-                self.list_copied_links,
-                self.GROUP_LABEL,
-                "Lists links from Telegram text already copied to clipboard",
-                desktop_keybinding=keybindings.KeyBinding(
-                    "l", keybindings.ORCA_SHIFT_MODIFIER_MASK
-                ),
-                laptop_keybinding=keybindings.KeyBinding(
-                    "l", keybindings.ORCA_SHIFT_MODIFIER_MASK
                 ),
             ),
             KeyboardCommand(
@@ -87,10 +75,6 @@ class TelegramAccessibilityExtension(Extension):
     def list_message_links(self) -> bool:
         obj = self.controller.get_current_object_internal()
         show_links_for_current_object(obj, self.controller)
-        return True
-
-    def list_copied_links(self) -> bool:
-        show_links_from_clipboard(self.controller)
         return True
 
     def diagnose_links(self) -> bool:
