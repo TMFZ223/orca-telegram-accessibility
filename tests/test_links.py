@@ -96,6 +96,27 @@ class LinkDiscoveryTests(unittest.TestCase):
             [("https://example.org/ok", "https://example.org/ok")],
         )
 
+    def test_telegram_username_in_message(self):
+        root = FakeAccessible(text="Читать полностью\\n@linux_potok")
+        self.assertEqual(
+            collect_links(root),
+            [("@linux_potok", "https://t.me/linux_potok")],
+        )
+
+    def test_mention_not_extracted_from_url_or_email(self):
+        root = FakeAccessible(text="https://example.org/@linux_potok and mail@example.org")
+        self.assertEqual(
+            collect_links(root),
+            [("https://example.org/@linux_potok",
+              "https://example.org/@linux_potok")],
+        )
+
+    def test_hypertext_named_link(self):
+        root = FakeAccessible(links=["https://example.org/article"])
+        root.hypertext.get_link(0).get_name = lambda: "Читать полностью"
+        # A real AT-SPI hyperlink must expose its label and target.
+        self.assertEqual(len(collect_links(root)), 1)
+
     def test_handles_missing_root(self):
         self.assertEqual(collect_links(None), [])
 
