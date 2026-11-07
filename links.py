@@ -59,7 +59,7 @@ def _text_links(text):
 
 
 _NAMED_LINK_RE = re.compile(
-    r"(?P<label>[^\\n()]{1,160}?)\\s*\\((?P<uri>https?://[^\\s()]+)\\)"
+    r"(?m)^[ \\t]*(?P<label>[^\\n()]{1,160}?)\\s*\\((?P<uri>https?://[^\\s()]+)\\)"
 )
 
 
