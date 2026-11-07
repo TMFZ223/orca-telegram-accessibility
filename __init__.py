@@ -5,6 +5,7 @@ from orca import keybindings
 from orca.command import KeyboardCommand
 
 from .links import show_links_for_current_object
+from .diagnostics import save_accessibility_report
 
 
 class TelegramAccessibilityExtension(Extension):
@@ -31,6 +32,18 @@ class TelegramAccessibilityExtension(Extension):
                 ),
                 laptop_keybinding=keybindings.KeyBinding(
                     "l", keybindings.ORCA_MODIFIER_MASK
+                ),
+            ),
+            KeyboardCommand(
+                "telegram_diagnose_links",
+                self.diagnose_links,
+                self.GROUP_LABEL,
+                "Save AT-SPI link diagnostics for the current Telegram message",
+                desktop_keybinding=keybindings.KeyBinding(
+                    "l", keybindings.ORCA_CTRL_MODIFIER_MASK
+                ),
+                laptop_keybinding=keybindings.KeyBinding(
+                    "l", keybindings.ORCA_CTRL_MODIFIER_MASK
                 ),
             ),
             KeyboardCommand(
@@ -62,6 +75,19 @@ class TelegramAccessibilityExtension(Extension):
     def list_message_links(self) -> bool:
         obj = self.controller.get_current_object_internal()
         show_links_for_current_object(obj, self.controller)
+        return True
+
+    def diagnose_links(self) -> bool:
+        obj = self.controller.get_current_object_internal()
+        try:
+            path = save_accessibility_report(obj)
+            self.controller.present_message_internal(
+                "Telegram accessibility report saved to " + str(path)
+            )
+        except Exception:
+            self.controller.present_message_internal(
+                "Could not save Telegram accessibility report."
+            )
         return True
 
     def reactions_not_implemented(self) -> bool:
