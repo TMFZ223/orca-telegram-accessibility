@@ -6,11 +6,15 @@ from links import collect_links, collect_message_links, _safe_uri
 
 
 class FakeHyperlink:
-    def __init__(self, uri):
+    def __init__(self, uri, name=None):
         self.uri = uri
+        self.name = name
 
     def get_uri(self, _index):
         return self.uri
+
+    def get_name(self):
+        return self.name
 
 
 class FakeHypertext:
@@ -113,9 +117,13 @@ class LinkDiscoveryTests(unittest.TestCase):
 
     def test_hypertext_named_link(self):
         root = FakeAccessible(links=["https://example.org/article"])
-        root.hypertext.get_link(0).get_name = lambda: "Читать полностью"
-        # A real AT-SPI hyperlink must expose its label and target.
-        self.assertEqual(len(collect_links(root)), 1)
+        root.hypertext.get_link = lambda _index: FakeHyperlink(
+            "https://example.org/article", "Читать полностью"
+        )
+        self.assertEqual(
+            collect_links(root),
+            [("Читать полностью", "https://example.org/article")],
+        )
 
     def test_handles_missing_root(self):
         self.assertEqual(collect_links(None), [])
