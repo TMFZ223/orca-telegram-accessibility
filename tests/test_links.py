@@ -2,7 +2,7 @@
 
 import unittest
 
-from links import collect_links, _safe_uri
+from links import collect_links, collect_message_links, _safe_uri
 
 
 class FakeHyperlink:
@@ -76,6 +76,25 @@ class LinkDiscoveryTests(unittest.TestCase):
         self.assertIsNone(_safe_uri("javascript:alert(1)"))
         self.assertIsNone(_safe_uri("data:text/html,hello"))
         self.assertEqual(_safe_uri("www.example.com"), "https://www.example.com")
+
+    def test_url_in_accessible_name(self):
+        root = FakeAccessible(name="Open https://example.org/cabinet/?tg=test-token")
+        self.assertEqual(
+            collect_links(root),
+            [("https://example.org/cabinet/?tg=test-token",
+              "https://example.org/cabinet/?tg=test-token")],
+        )
+
+    def test_url_in_parent_text_without_scanning_siblings(self):
+        focused = FakeAccessible(name="Focused element")
+        sibling = FakeAccessible(text="https://wrong.example")
+        parent = FakeAccessible(text="Message https://example.org/ok",
+                                children=[focused, sibling])
+        focused.get_parent = lambda: parent
+        self.assertEqual(
+            collect_message_links(focused),
+            [("https://example.org/ok", "https://example.org/ok")],
+        )
 
     def test_handles_missing_root(self):
         self.assertEqual(collect_links(None), [])
