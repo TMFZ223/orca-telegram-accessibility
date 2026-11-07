@@ -3,7 +3,7 @@ set -eu
 
 SCRIPT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 DATA_HOME=${XDG_DATA_HOME:-"$HOME/.local/share"}
-EXTENSION_DIR="$DATA_HOME/orca/extensions/telegram_accessibility"
+EXTENSION_DIR="$DATA_HOME/orca/extensions"
 
 mkdir -p "$EXTENSION_DIR"
 install -m 0644 "$SCRIPT_DIR/__init__.py" "$EXTENSION_DIR/__init__.py"
