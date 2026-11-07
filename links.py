@@ -14,6 +14,7 @@ from urllib.parse import urlparse
 
 _URL_RE = re.compile(r"(?i)\b(?:https?://|www\.)[^\s<>\u0000-\u001f]+")
 _ALLOWED_SCHEMES = {"http", "https", "mailto"}
+_MENTION_RE = re.compile(r"(?<![\\w@])@([A-Za-z0-9_]{5,32})(?![\\w])")
 
 
 def _get_value(obj, names, *args):
@@ -38,6 +39,40 @@ def _safe_uri(uri):
     except ValueError:
         return None
     return uri if scheme in _ALLOWED_SCHEMES else None
+
+
+def _text_links(text):
+    """Discover literal URLs and Telegram public usernames in visible text."""
+    found = []
+    spans = []
+    for match in _URL_RE.finditer(text):
+        safe = _safe_uri(match.group())
+        if safe:
+            found.append((match.group(), safe))
+            spans.append(match.span())
+    for match in _MENTION_RE.finditer(text):
+        if any(start <= match.start() < end for start, end in spans):
+            continue
+        username = match.group(1)
+        found.append(("@" + username, "https://t.me/" + username))
+    return found
+
+
+def _open_link(uri):
+    """Prefer the installed Telegram URI handler for public Telegram links."""
+    parsed = urlparse(uri)
+    if parsed.scheme == "https" and parsed.hostname in {"t.me", "telegram.me"}:
+        username = parsed.path.strip("/")
+        if re.fullmatch(r"[A-Za-z0-9_]{5,32}", username):
+            try:
+                import gi
+                from gi.repository import Gio
+                app = Gio.AppInfo.get_default_for_uri_scheme("tg")
+                if app is not None:
+                    return bool(app.launch_uris(["tg://resolve?domain=" + username], None))
+            except Exception:
+                pass
+    return webbrowser.open(uri)
 
 
 def _accessible_name(obj):
@@ -95,10 +130,7 @@ def _object_links(obj):
     found.extend(_hypertext_links(obj))
 
     # Telegram can expose the whole message as an accessible name.
-    for match in _URL_RE.findall(name):
-        safe = _safe_uri(match)
-        if safe:
-            found.append((match, safe))
+    found.extend(_text_links(name))
 
     # A text-only fallback is useful for messages whose URLs are spoken as
     # plain text and are not represented by AT-SPI Hyperlink objects.
@@ -108,10 +140,7 @@ def _object_links(obj):
     if not text:
         text = _get_value(obj, ("get_text", "getText"), 0, -1)
     if text:
-        for match in _URL_RE.findall(str(text)):
-            safe = _safe_uri(match)
-            if safe:
-                found.append((match, safe))
+        found.extend(_text_links(str(text)))
     return found
 
 
@@ -235,7 +264,8 @@ def show_links_for_current_object(root, controller):
         if iterator is not None:
             uri = model.get_value(iterator, 1)
             try:
-                webbrowser.open(uri)
+                if not _open_link(uri):
+                    controller.present_message_internal("Could not open the selected link.")
             except Exception:
                 controller.present_message_internal("Could not open the selected link.")
 
