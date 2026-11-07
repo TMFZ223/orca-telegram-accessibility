@@ -86,17 +86,20 @@ def _object_links(obj):
                 found.append((name or safe, safe))
 
     if "link" in role or "hyperlink" in role:
-        for method_names in (("get_uri", "getURI"),):
-            uri = _get_value(obj, method_names, 0)
-            safe = _safe_uri(uri)
-            if safe:
-                found.append((name or safe, safe))
+        hyperlink = _get_value(obj, ("query_hyperlink", "queryHyperlink"))
+        uri = _get_value(hyperlink, ("get_uri", "getURI"), 0) if hyperlink else None
+        safe = _safe_uri(uri)
+        if safe:
+            found.append((name or safe, safe))
 
     found.extend(_hypertext_links(obj))
 
     # A text-only fallback is useful for messages whose URLs are spoken as
     # plain text and are not represented by AT-SPI Hyperlink objects.
-    text = _get_value(obj, ("get_text", "getText"), 0, -1)
+    text_iface = _get_value(obj, ("query_text", "queryText"))
+    text = _get_value(text_iface, ("get_text", "getText"), 0, -1)
+    if not text:
+        text = _get_value(obj, ("get_text", "getText"), 0, -1)
     if text:
         for match in _URL_RE.findall(str(text)):
             safe = _safe_uri(match)
