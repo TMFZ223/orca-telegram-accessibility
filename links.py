@@ -102,6 +102,52 @@ def _hypertext_links(obj):
     return found
 
 
+def _attribute_links(attributes, label):
+    """Read URI-bearing AT-SPI attributes, including text formatting runs."""
+    if isinstance(attributes, dict):
+        items = attributes.items()
+    else:
+        items = []
+        for item in attributes or []:
+            key, separator, value = str(item).partition(":")
+            if separator:
+                items.append((key, value))
+    found = []
+    for key, value in items:
+        if str(key).strip().lower() in {"uri", "href", "url", "link", "link-url", "link-target"}:
+            safe = _safe_uri(str(value))
+            if safe:
+                found.append((label or safe, safe))
+    return found
+
+
+def _text_attribute_links(text_iface, text):
+    """Find named hyperlinks exposed as per-range AT-SPI text attributes."""
+    count = _get_value(text_iface, ("get_character_count", "getCharacterCount"))
+    if not isinstance(count, int) or count <= 0:
+        return []
+    found = []
+    offset = 0
+    # Bound work for long chat messages or malformed AT-SPI implementations.
+    for _ in range(min(count, 4096)):
+        result = _get_value(text_iface, ("get_attribute_run", "getAttributeRun"), offset, False)
+        if result is None:
+            result = _get_value(text_iface, ("get_attributes", "getAttributes"), offset)
+        if not isinstance(result, (tuple, list)) or len(result) < 3:
+            break
+        attrs, start, end = result[:3]
+        if not isinstance(start, int) or not isinstance(end, int):
+            break
+        if end <= offset:
+            break
+        label = _get_value(text_iface, ("get_text", "getText"), max(0, start), end)
+        found.extend(_attribute_links(attrs, str(label or "").strip()))
+        offset = end
+        if offset >= count:
+            break
+    return found
+
+
 def _object_links(obj):
     found = []
     role = _get_value(obj, ("get_role_name", "getRoleName")) or ""
@@ -112,13 +158,7 @@ def _object_links(obj):
     attrs = _get_value(obj, ("get_attributes", "getAttributes")) or []
     if isinstance(attrs, dict):
         attrs = [f"{key}:{value}" for key, value in attrs.items()]
-    for item in attrs:
-        text = str(item)
-        key, separator, value = text.partition(":")
-        if separator and key.strip().lower() in {"uri", "href", "url"}:
-            safe = _safe_uri(value)
-            if safe:
-                found.append((name or safe, safe))
+    found.extend(_attribute_links(attrs, name))
 
     if "link" in role or "hyperlink" in role:
         hyperlink = _get_value(obj, ("query_hyperlink", "queryHyperlink"))
@@ -135,6 +175,7 @@ def _object_links(obj):
     # A text-only fallback is useful for messages whose URLs are spoken as
     # plain text and are not represented by AT-SPI Hyperlink objects.
     text_iface = _get_value(obj, ("query_text", "queryText"))
+    found.extend(_text_attribute_links(text_iface, ""))
     length = _get_value(text_iface, ("get_character_count", "getCharacterCount"))
     text = _get_value(text_iface, ("get_text", "getText"), 0, length if isinstance(length, int) and length >= 0 else -1)
     if not text:
