@@ -58,6 +58,51 @@ def _text_links(text):
     return found
 
 
+_NAMED_LINK_RE = re.compile(
+    r"(?P<label>[^\\n()]{1,160}?)\\s*\\((?P<uri>https?://[^\\s()]+)\\)"
+)
+
+
+def collect_copied_links(text):
+    """Parse Telegram's 'Copy selected as text' representation.
+
+    This never reads or modifies the clipboard; the caller supplies its text.
+    """
+    if not isinstance(text, str):
+        return []
+    found = []
+    seen = set()
+    for match in _NAMED_LINK_RE.finditer(text):
+        # The label is the text since the preceding line break, if present.
+        label = match.group("label").strip()
+        uri = _safe_uri(match.group("uri"))
+        if uri and uri not in seen:
+            seen.add(uri)
+            found.append((label or uri, uri))
+    for label, uri in _text_links(text):
+        if uri not in seen:
+            seen.add(uri)
+            found.append((label, uri))
+    return found
+
+
+def show_links_from_clipboard(controller):
+    """Read already-copied Telegram text without changing clipboard contents."""
+    try:
+        import gi
+        gi.require_version("Gtk", "3.0")
+        from gi.repository import Gtk, Gdk
+        clipboard = Gtk.Clipboard.get(Gdk.SELECTION_CLIPBOARD)
+        text = clipboard.wait_for_text()
+    except Exception:
+        controller.present_message_internal("Could not read clipboard text.")
+        return
+    if not text:
+        controller.present_message_internal("Clipboard contains no text.")
+        return
+    show_link_chooser(collect_copied_links(text), controller)
+
+
 def _open_link(uri):
     """Prefer the installed Telegram URI handler for public Telegram links."""
     parsed = urlparse(uri)
@@ -246,6 +291,11 @@ def collect_message_links(root):
 def show_links_for_current_object(root, controller):
     """Show the discovered links in a modal, keyboard-operable GTK dialog."""
     links = collect_message_links(root)
+    show_link_chooser(links, controller)
+
+
+def show_link_chooser(links, controller):
+    """Display a list of validated links using the existing keyboard UI."""
     if not links:
         controller.present_message_internal("No links found in the current accessible message.")
         return
