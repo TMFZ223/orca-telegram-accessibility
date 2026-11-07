@@ -125,6 +125,20 @@ class LinkDiscoveryTests(unittest.TestCase):
             [("Читать полностью", "https://example.org/article")],
         )
 
+    def test_named_link_in_text_attribute_run(self):
+        root = FakeAccessible(text="Читать полностью")
+        root.query_text = lambda: root
+        root.get_character_count = lambda: len(root.text)
+        root.get_attribute_run = lambda offset, include_defaults: (
+            ["href:https://www.omgubuntu.co.uk/2026/11/global-menu-gnome-extension"],
+            0, len(root.text),
+        )
+        self.assertEqual(
+            collect_links(root),
+            [("Читать полностью",
+              "https://www.omgubuntu.co.uk/2026/11/global-menu-gnome-extension")],
+        )
+
     def test_handles_missing_root(self):
         self.assertEqual(collect_links(None), [])
 
