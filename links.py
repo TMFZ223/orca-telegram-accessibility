@@ -94,10 +94,17 @@ def _object_links(obj):
 
     found.extend(_hypertext_links(obj))
 
+    # Telegram can expose the whole message as an accessible name.
+    for match in _URL_RE.findall(name):
+        safe = _safe_uri(match)
+        if safe:
+            found.append((match, safe))
+
     # A text-only fallback is useful for messages whose URLs are spoken as
     # plain text and are not represented by AT-SPI Hyperlink objects.
     text_iface = _get_value(obj, ("query_text", "queryText"))
-    text = _get_value(text_iface, ("get_text", "getText"), 0, -1)
+    length = _get_value(text_iface, ("get_character_count", "getCharacterCount"))
+    text = _get_value(text_iface, ("get_text", "getText"), 0, length if isinstance(length, int) and length >= 0 else -1)
     if not text:
         text = _get_value(obj, ("get_text", "getText"), 0, -1)
     if text:
@@ -146,9 +153,32 @@ def collect_links(root, max_nodes=500):
     return links
 
 
+def collect_message_links(root):
+    """Search the focused object, then only ancestor text (never sibling messages)."""
+    links = collect_links(root)
+    if links:
+        return links
+    current = root
+    seen = {id(root)}
+    for _ in range(3):
+        parent = _get_value(current, ("get_parent", "getParent"))
+        if parent is None or id(parent) in seen:
+            break
+        seen.add(id(parent))
+        # Do not traverse siblings: a container may hold many chat messages.
+        links = _object_links(parent)
+        if links:
+            return list(dict((uri, (label, uri)) for label, uri in links).values())
+        current = parent
+    return []
+
+
 def show_links_for_current_object(root, controller):
     """Show the discovered links in a modal, keyboard-operable GTK dialog."""
-    links = collect_links(root)
+    links = collect_message_links(root)
+    if not links:
+        controller.present_message_internal("No links found in the current accessible message.")
+        return
     try:
         import gi
 
