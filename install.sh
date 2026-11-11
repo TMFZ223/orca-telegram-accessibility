@@ -24,6 +24,7 @@ mkdir -p "$EXTENSION_DIR"
 install -m 0644 "$SCRIPT_DIR/__init__.py" "$EXTENSION_DIR/__init__.py"
 install -m 0644 "$SCRIPT_DIR/links.py" "$EXTENSION_DIR/links.py"
 install -m 0644 "$SCRIPT_DIR/reactions.py" "$EXTENSION_DIR/reactions.py"
+install -m 0644 "$SCRIPT_DIR/reaction_diagnostics.py" "$EXTENSION_DIR/reaction_diagnostics.py"
 install -m 0644 "$SCRIPT_DIR/diagnostics.py" "$EXTENSION_DIR/diagnostics.py"
 
 if [ "$(id -u)" -eq 0 ] && [ "$TARGET_USER" != root ]; then
