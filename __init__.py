@@ -66,10 +66,10 @@ class TelegramAccessibilityExtension(Extension):
                 self.GROUP_LABEL,
                 "Save read-only AT-SPI reaction diagnostics for the focused message",
                 desktop_keybinding=keybindings.KeyBinding(
-                    "r", keybindings.ORCA_CTRL_SHIFT_MODIFIER_MASK
+                    "r", (keybindings.ORCA_CTRL_MODIFIER_MASK | keybindings.SHIFT_MODIFIER_MASK)
                 ),
                 laptop_keybinding=keybindings.KeyBinding(
-                    "r", keybindings.ORCA_CTRL_SHIFT_MODIFIER_MASK
+                    "r", (keybindings.ORCA_CTRL_MODIFIER_MASK | keybindings.SHIFT_MODIFIER_MASK)
                 ),
             ),
             KeyboardCommand(
