@@ -5,6 +5,7 @@ from orca import keybindings
 from orca.command import KeyboardCommand
 
 from .links import show_links_for_current_object
+from .reactions import show_reactions_for_current_object
 from .diagnostics import save_accessibility_report
 
 
@@ -48,9 +49,9 @@ class TelegramAccessibilityExtension(Extension):
             ),
             KeyboardCommand(
                 "telegram_list_reactions",
-                self.reactions_not_implemented,
+                self.list_reactions,
                 self.GROUP_LABEL,
-                "Reaction picker (planned; not implemented yet)",
+                "List and apply exposed Telegram message reactions",
                 desktop_keybinding=keybindings.KeyBinding(
                     "r", keybindings.ORCA_CTRL_MODIFIER_MASK
                 ),
@@ -90,10 +91,9 @@ class TelegramAccessibilityExtension(Extension):
             )
         return True
 
-    def reactions_not_implemented(self) -> bool:
-        self.controller.present_message_internal(
-            "Telegram reaction picker is not implemented yet."
-        )
+    def list_reactions(self) -> bool:
+        obj = self.controller.get_current_object_internal()
+        show_reactions_for_current_object(obj, self.controller)
         return True
 
     def bot_buttons_not_implemented(self) -> bool:
