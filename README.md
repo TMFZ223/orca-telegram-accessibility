@@ -16,7 +16,7 @@ It targets Orca 51.1 and the official Telegram Desktop Linux build. Initial manu
 
 The first prototype includes working discovery/dialog code for the links workflow. The reaction picker is experimental and only works where Telegram exposes actionable reaction controls through AT-SPI; the bot-button shortcut remains unimplemented. Channel comment and payment support remain planned.
 
-## Compatibility targets
+## Reaction diagnostics\n\nWith focus on a Telegram message, press **Insert+Ctrl+Shift+R** to save a read-only AT-SPI reaction report to `~/.local/share/orca/telegram-reaction-diagnostics.txt`. The report records accessible roles, names, descriptions, attributes, child counts, action names and potential reaction controls for the focused object and its descendants, plus metadata of up to three ancestors. It never activates an action or scans ancestor siblings. **The report may contain private message text. Review and redact it before sharing.** The file is stored locally with owner-only permissions (0600).\n\n## Compatibility targets
 
 - Orca 51.1 user-extension API
 - Telegram Desktop 7.3.3 (official Linux build)
