@@ -7,6 +7,7 @@ from orca.command import KeyboardCommand
 from .links import show_links_for_current_object
 from .reactions import show_reactions_for_current_object
 from .diagnostics import save_accessibility_report
+from .reaction_diagnostics import save_reaction_report
 
 
 class TelegramAccessibilityExtension(Extension):
@@ -60,6 +61,18 @@ class TelegramAccessibilityExtension(Extension):
                 ),
             ),
             KeyboardCommand(
+                "telegram_diagnose_reactions",
+                self.diagnose_reactions,
+                self.GROUP_LABEL,
+                "Save read-only AT-SPI reaction diagnostics for the focused message",
+                desktop_keybinding=keybindings.KeyBinding(
+                    "r", keybindings.ORCA_CTRL_SHIFT_MODIFIER_MASK
+                ),
+                laptop_keybinding=keybindings.KeyBinding(
+                    "r", keybindings.ORCA_CTRL_SHIFT_MODIFIER_MASK
+                ),
+            ),
+            KeyboardCommand(
                 "telegram_bot_buttons",
                 self.bot_buttons_not_implemented,
                 self.GROUP_LABEL,
@@ -94,6 +107,19 @@ class TelegramAccessibilityExtension(Extension):
     def list_reactions(self) -> bool:
         obj = self.controller.get_current_object_internal()
         show_reactions_for_current_object(obj, self.controller)
+        return True
+
+    def diagnose_reactions(self) -> bool:
+        obj = self.controller.get_current_object_internal()
+        try:
+            path = save_reaction_report(obj)
+            self.controller.present_message_internal(
+                "Telegram reaction report saved to " + str(path)
+            )
+        except Exception:
+            self.controller.present_message_internal(
+                "Could not save Telegram reaction diagnostics."
+            )
         return True
 
     def bot_buttons_not_implemented(self) -> bool:
