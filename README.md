@@ -4,17 +4,17 @@ An experimental [Orca](https://github.com/GNOME/orca) user extension that aims t
 
 It targets Orca 51.1 and the official Telegram Desktop Linux build. Initial manual testing is intended for Telegram Desktop 7.3.3 on Debian 13 and Fedora, using MATE on X11.
 
-> **Status: early prototype.** The link-list command is implemented as an initial vertical slice. The other requested Telegram workflows are planned and are not implemented yet. The project has not yet been validated in a live Orca + Telegram session.
+> **Status: early prototype.** The link-list command is implemented as an initial vertical slice. A conservative reaction-picker prototype is also available on the development branch; live Telegram integration is not yet verified. The project has not yet been validated in a live Orca + Telegram session.
 
 ## Project goals
 
 - **Message links — `Insert+L`:** collect links exposed by the current accessible message and present them in a keyboard-operable list. Enter opens the selected HTTP(S) or mailto link in the default handler; Escape closes the dialog.
-- **Message reactions — `Insert+Ctrl+R`:** provide a keyboard-accessible reaction picker.
+- **Message reactions — `Insert+Ctrl+R`:** show explicitly named, actionable reactions exposed below the focused AT-SPI object. Arrow keys navigate the GTK list; Enter invokes the selected AT-SPI action and Escape cancels without applying. If Telegram does not expose reaction controls, the extension reports that limitation.
 - **Channel comments:** make comment controls and navigation accessible.
 - **Bot buttons — `Insert+Ctrl+M`:** list inline/reply keyboard buttons and activate the selected button.
 - **Payments:** expose payment and checkout actions with meaningful names, roles, and keyboard operation.
 
-The first prototype includes working discovery/dialog code for the links workflow. The reaction and bot-button shortcuts currently announce that their functionality is not implemented. Channel comment and payment support remain planned.
+The first prototype includes working discovery/dialog code for the links workflow. The reaction picker is experimental and only works where Telegram exposes actionable reaction controls through AT-SPI; the bot-button shortcut remains unimplemented. Channel comment and payment support remain planned.
 
 ## Compatibility targets
 
@@ -46,7 +46,7 @@ Orca requires explicit approval of user extensions. Re-approve the extension aft
 
 ## Run the unit tests
 
-The link-discovery helpers have tests that use lightweight AT-SPI test doubles, so they can run without starting Orca or Telegram:
+The link and reaction helpers have tests that use lightweight AT-SPI test doubles, so they can run without starting Orca or Telegram:
 
 ```sh
 python3 -m unittest discover -s tests -v
