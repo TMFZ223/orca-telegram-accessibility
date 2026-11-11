@@ -219,7 +219,7 @@ def build_window_reaction_report(root):
             ])
         lines.append("Objects inspected in window: " + str(inspected))
         lines.append("")
-    return "\\n".join(lines)
+    return "\n".join(lines)
 
 
 def save_window_reaction_report(root, target=None):
