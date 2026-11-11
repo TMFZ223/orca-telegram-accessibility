@@ -7,7 +7,7 @@ from orca.command import KeyboardCommand
 from .links import show_links_for_current_object
 from .reactions import show_reactions_for_current_object
 from .diagnostics import save_accessibility_report
-from .reaction_diagnostics import save_reaction_report
+from .reaction_diagnostics import save_reaction_report, save_window_reaction_report
 
 
 class TelegramAccessibilityExtension(Extension):
@@ -73,6 +73,18 @@ class TelegramAccessibilityExtension(Extension):
                 ),
             ),
             KeyboardCommand(
+                "telegram_diagnose_reaction_window",
+                self.diagnose_reaction_window,
+                self.GROUP_LABEL,
+                "Save AT-SPI reaction diagnostics for Telegram window and popups",
+                desktop_keybinding=keybindings.KeyBinding(
+                    "w", (keybindings.ORCA_CTRL_MODIFIER_MASK | keybindings.SHIFT_MODIFIER_MASK)
+                ),
+                laptop_keybinding=keybindings.KeyBinding(
+                    "w", (keybindings.ORCA_CTRL_MODIFIER_MASK | keybindings.SHIFT_MODIFIER_MASK)
+                ),
+            ),
+            KeyboardCommand(
                 "telegram_bot_buttons",
                 self.bot_buttons_not_implemented,
                 self.GROUP_LABEL,
@@ -119,6 +131,19 @@ class TelegramAccessibilityExtension(Extension):
         except Exception:
             self.controller.present_message_internal(
                 "Could not save Telegram reaction diagnostics."
+            )
+        return True
+
+    def diagnose_reaction_window(self) -> bool:
+        obj = self.controller.get_current_object_internal()
+        try:
+            path = save_window_reaction_report(obj)
+            self.controller.present_message_internal(
+                "Telegram window reaction report saved to " + str(path)
+            )
+        except Exception:
+            self.controller.present_message_internal(
+                "Could not save Telegram window reaction diagnostics."
             )
         return True
 
