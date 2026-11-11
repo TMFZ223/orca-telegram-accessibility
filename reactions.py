@@ -5,7 +5,10 @@ not expose its available-reactions menu to AT-SPI; in that case do not guess.
 """
 from __future__ import annotations
 
-from .links import _get_value, _accessible_name
+try:
+    from .links import _get_value, _accessible_name
+except ImportError:  # Standalone unit tests from repository root
+    from links import _get_value, _accessible_name
 
 EMOJI_NAMES = {
     "👍": "Thumbs up", "👎": "Thumbs down", "❤️": "Heart",
