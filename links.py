@@ -14,7 +14,7 @@ from urllib.parse import urlparse
 
 _URL_RE = re.compile(r"(?i)\b(?:https?://|www\.)[^\s<>\u0000-\u001f]+")
 _ALLOWED_SCHEMES = {"http", "https", "mailto"}
-_MENTION_RE = re.compile(r"(?<![\\w@])@([A-Za-z0-9_]{5,32})(?![\\w])")
+_MENTION_RE = re.compile(r"(?<![\w@])@([A-Za-z0-9_]{5,32})(?![\w])")
 
 
 def _get_value(obj, names, *args):
