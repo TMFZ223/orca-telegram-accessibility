@@ -101,7 +101,7 @@ class LinkDiscoveryTests(unittest.TestCase):
         )
 
     def test_telegram_username_in_message(self):
-        root = FakeAccessible(text="Читать полностью\\n@linux_potok")
+        root = FakeAccessible(text="Читать полностью\n@linux_potok")
         self.assertEqual(
             collect_links(root),
             [("@linux_potok", "https://t.me/linux_potok")],
