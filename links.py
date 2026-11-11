@@ -64,9 +64,12 @@ def _text_links(text):
     for match in _URL_RE.finditer(text):
         safe = _safe_uri(match.group())
         if safe:
-            found.append((match.group(), safe))
+            found.append((safe, safe))
             spans.append(match.span())
     for match in _MENTION_RE.finditer(text):
+        # An email address is not a Telegram mention, even after a word character.
+        if match.start() > 0 and (text[match.start() - 1].isalnum() or text[match.start() - 1] in "._%+-"):
+            continue
         if any(start <= match.start() < end for start, end in spans):
             continue
         username = match.group(1)
