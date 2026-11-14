@@ -83,9 +83,71 @@ def activate_reaction(item):
     return _get_value(action, ("do_action", "doAction"), index) is True
 
 
+def _unnamed_emoji_button(root):
+    """Find a uniquely matching unnamed button in an open popup menu."""
+    if root is None:
+        return None
+    current, visited, popup = root, set(), None
+    for _ in range(16):
+        if current is None or id(current) in visited:
+            break
+        visited.add(id(current))
+        role = str(_get_value(current, ("get_role_name", "getRoleName")) or "").casefold()
+        if role in ("popup menu", "menu"):
+            popup = current
+            break
+        current = _get_value(current, ("get_parent", "getParent"))
+    if popup is None:
+        return None
+    queue, seen, matches = [(popup, 0)], set(), []
+    while queue and len(seen) < 160:
+        obj, depth = queue.pop(0)
+        if id(obj) in seen:
+            continue
+        seen.add(id(obj))
+        role = str(_get_value(obj, ("get_role_name", "getRoleName")) or "").casefold()
+        count = _get_value(obj, ("get_child_count", "getChildCount"))
+        children = []
+        if isinstance(count, int):
+            for i in range(min(max(0, count), 35)):
+                child = _get_value(obj, ("get_child_at_index", "getChildAtIndex"), i)
+                if child is not None:
+                    children.append(child)
+        if role in ("push button", "button") and not _accessible_name(obj).strip():
+            labels = [_accessible_name(child).casefold() for child in children[:12]]
+            if any("в этом сообщении эмодзи из" in label and "набор" in label for label in labels):
+                matches.append(obj)
+        if depth < 5:
+            queue.extend((child, depth + 1) for child in children)
+    return matches[0] if len(matches) == 1 else None
+
+
+def try_open_emoji_button(root, controller):
+    """Experiment: activate only an identified button with a named AT-SPI action."""
+    button = _unnamed_emoji_button(root)
+    if button is None:
+        return False
+    action = _action_index(button)
+    if action is None:
+        controller.present_message_internal(
+            "The unnamed emoji button has no accessible activation action."
+        )
+        return True
+    iface, index = action
+    if _get_value(iface, ("do_action", "doAction"), index) is True:
+        controller.present_message_internal(
+            "Emoji button activated. Check whether Telegram opened a new panel."
+        )
+    else:
+        controller.present_message_internal("Could not activate the emoji button.")
+    return True
+
+
 def show_reactions_for_current_object(root, controller):
     reactions = collect_reactions(root)
     if not reactions:
+        if try_open_emoji_button(root, controller):
+            return
         controller.present_message_internal(
             "No actionable reactions were exposed for this message through AT-SPI."
         )
