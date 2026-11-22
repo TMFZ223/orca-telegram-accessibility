@@ -2,7 +2,7 @@ name: Tests
 
 on:
   push:
-    branches: [main, ifat_1]
+    branches: [main, ifat_1, ifat_2]
   pull_request:
     branches: [main]
 
