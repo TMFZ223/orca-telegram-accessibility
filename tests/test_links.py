@@ -2,7 +2,7 @@
 
 import unittest
 
-from links import collect_links, collect_message_links, _safe_uri
+from links import collect_links, collect_message_links, format_link_label, _safe_uri
 
 
 class FakeHyperlink:
@@ -159,6 +159,107 @@ class LinkDiscoveryTests(unittest.TestCase):
 
     def test_handles_missing_root(self):
         self.assertEqual(collect_links(None), [])
+
+
+class OffsetHyperlink:
+    """Mimics Atspi.Hyperlink: URI plus start/end offsets, no name."""
+
+    def __init__(self, uri, start, end):
+        self.uri, self.start, self.end = uri, start, end
+
+    def get_uri(self, _index):
+        return self.uri
+
+    def get_start_index(self):
+        return self.start
+
+    def get_end_index(self):
+        return self.end
+
+    def get_name(self):
+        return ""
+
+
+class AtspiLikeMessage:
+    """Mimics an Atspi.Accessible implementing Text and Hypertext (gi API)."""
+
+    def __init__(self, text, links, interfaces=("Accessible", "Text", "Hypertext")):
+        self.text = text
+        self.links = links
+        self.interfaces = list(interfaces)
+
+    def get_interfaces(self):
+        return self.interfaces
+
+    def get_name(self):
+        return ""
+
+    def get_role_name(self):
+        return "text"
+
+    def get_child_count(self):
+        return 0
+
+    def get_hypertext_iface(self):
+        return self
+
+    def get_text_iface(self):
+        return self
+
+    def get_n_links(self):
+        return len(self.links)
+
+    def get_link(self, index):
+        return self.links[index]
+
+    def get_character_count(self):
+        return len(self.text)
+
+    def get_text(self, start, end):
+        return self.text[start:None if end == -1 else end]
+
+
+class HypertextOffsetTests(unittest.TestCase):
+    def test_named_and_plain_hyperlinks_via_offsets(self):
+        text = "Новость: читать всё. Сайт https://example.org/ и открыть адрес"
+        named1 = text.index("читать всё")
+        plain = text.index("https://example.org/")
+        named2 = text.index("открыть адрес")
+        message = AtspiLikeMessage(text, [
+            OffsetHyperlink("https://news.example/a?id=1", named1, named1 + len("читать всё")),
+            OffsetHyperlink("https://example.org/", plain, plain + len("https://example.org/")),
+            OffsetHyperlink("https://maps.example/addr", named2, named2 + len("открыть адрес")),
+        ])
+        self.assertEqual(collect_links(message), [
+            ("читать всё", "https://news.example/a?id=1"),
+            ("https://example.org/", "https://example.org/"),
+            ("открыть адрес", "https://maps.example/addr"),
+        ])
+
+    def test_hypertext_label_wins_over_regex_duplicate(self):
+        text = "открыть https://example.org/x"
+        message = AtspiLikeMessage(text, [OffsetHyperlink("https://example.org/x", 0, 7)])
+        self.assertEqual(collect_links(message), [("открыть", "https://example.org/x")])
+
+    def test_fallback_to_regex_without_hypertext_interface(self):
+        message = AtspiLikeMessage("см. https://example.org/doc", [], interfaces=("Accessible", "Text"))
+        message.get_n_links = None  # interface not implemented
+        message.get_hypertext_iface = lambda: None
+        self.assertEqual(collect_links(message),
+                         [("https://example.org/doc", "https://example.org/doc")])
+
+    def test_unsafe_hyperlink_skipped(self):
+        message = AtspiLikeMessage("click", [OffsetHyperlink("javascript:alert(1)", 0, 5)])
+        self.assertEqual(collect_links(message), [])
+
+    def test_format_link_label(self):
+        self.assertEqual(format_link_label("читать всё", "https://a.example/x"),
+                         "читать всё \u2192 https://a.example/x")
+        self.assertEqual(format_link_label("https://a.example/x", "https://a.example/x"),
+                         "https://a.example/x")
+        self.assertEqual(format_link_label("www.a.example", "https://www.a.example"),
+                         "https://www.a.example")
+        self.assertEqual(format_link_label("", "https://a.example"), "https://a.example")
 
 
 if __name__ == "__main__":
