@@ -99,26 +99,163 @@ def _accessible_name(obj):
     return str(name).strip() if name else ""
 
 
+_MAX_HYPERLINKS = 256
+
+
+def _atspi_module():
+    """Return gi.repository.Atspi when available (Orca 51 uses it directly)."""
+    try:
+        import gi
+
+        gi.require_version("Atspi", "2.0")
+        from gi.repository import Atspi
+        return Atspi
+    except Exception:
+        return None
+
+
+def _supports_interface(obj, interface):
+    """Best-effort check of Atspi.Accessible.get_interfaces(); None = unknown."""
+    interfaces = _get_value(obj, ("get_interfaces", "getInterfaces"))
+    if interfaces is None:
+        return None
+    try:
+        return interface in [str(item) for item in interfaces]
+    except TypeError:
+        return None
+
+
+def _iface(obj, interface, method_names):
+    """Get an AT-SPI interface object for ``obj``.
+
+    Supports the GObject-introspection API used by Orca 51
+    (``Atspi.Accessible.get_hypertext_iface()``), the legacy pyatspi API
+    (``queryHypertext()``) and accessibles that implement the interface
+    methods directly (Atspi.Accessible implements Atspi.Text/Hypertext).
+    """
+    if obj is None or _supports_interface(obj, interface) is False:
+        return None
+    return _get_value(obj, method_names)
+
+
+def _hypertext_iface(obj):
+    hypertext = _iface(
+        obj, "Hypertext",
+        ("get_hypertext_iface", "get_hypertext", "query_hypertext", "queryHypertext"),
+    )
+    if hypertext is None and callable(getattr(obj, "get_n_links", None)):
+        hypertext = obj
+    return hypertext
+
+
+def _text_iface(obj):
+    text = _iface(obj, "Text", ("get_text_iface", "query_text", "queryText"))
+    if text is None and callable(getattr(obj, "get_text", None)):
+        text = obj
+    return text
+
+
+def _call_iface(iface, names, atspi_class, *args):
+    """Call an interface method; fall back to Atspi.<Interface>.<method>(obj)."""
+    value = _get_value(iface, names, *args)
+    if value is None and atspi_class is not None:
+        for name in names:
+            function = getattr(atspi_class, name, None)
+            if callable(function):
+                try:
+                    value = function(iface, *args)
+                except Exception:
+                    continue
+                if value is not None:
+                    break
+    return value
+
+
+def _link_offsets(link):
+    start = _get_value(link, ("get_start_index", "getStartIndex"))
+    end = _get_value(link, ("get_end_index", "getEndIndex"))
+    if start is None:
+        start = getattr(link, "startIndex", None)
+    if end is None:
+        end = getattr(link, "endIndex", None)
+    if isinstance(start, int) and isinstance(end, int) and 0 <= start < end:
+        return start, end
+    return None
+
+
+def _link_display_text(link, text_iface, atspi):
+    """Visible text of a hyperlink: Atspi.Text.get_text(start, end) first."""
+    offsets = _link_offsets(link)
+    if offsets is not None and text_iface is not None:
+        text_class = getattr(atspi, "Text", None) if atspi else None
+        display = _call_iface(text_iface, ("get_text", "getText"), text_class, *offsets)
+        display = str(display or "").replace("\ufffc", "").strip()
+        if display:
+            return display
+    # Some implementations name the hyperlink (or its first anchor) instead.
+    for getter in (lambda: _accessible_name(link),
+                   lambda: _accessible_name(_get_value(link, ("get_object", "getObject"), 0))):
+        try:
+            name = getter()
+        except Exception:
+            name = ""
+        if name:
+            return name
+    return ""
+
+
 def _hypertext_links(obj):
-    hypertext = _get_value(obj, ("query_hypertext", "queryHypertext"))
+    """Return (display text, URI) pairs from the AT-SPI Hypertext interface.
+
+    This finds both plain URLs and named (anchor) links such as
+    "Read more", whose visible text differs from the target URI. An empty
+    result means the interface is missing or exposes no links; callers then
+    fall back to text attributes and regular-expression URL detection.
+    """
+    hypertext = _hypertext_iface(obj)
     if hypertext is None:
         return []
+    atspi = _atspi_module()
+    hypertext_class = getattr(atspi, "Hypertext", None) if atspi else None
+    hyperlink_class = getattr(atspi, "Hyperlink", None) if atspi else None
 
-    count = _get_value(hypertext, ("get_n_links", "getNLinks"))
-    if not isinstance(count, int):
+    count = _call_iface(hypertext, ("get_n_links", "getNLinks"), hypertext_class)
+    if not isinstance(count, int) or count <= 0:
         return []
 
+    text_iface = _text_iface(obj)
     found = []
-    for index in range(max(0, count)):
-        link = _get_value(hypertext, ("get_link", "getLink"), index)
+    for index in range(min(count, _MAX_HYPERLINKS)):
+        link = _call_iface(hypertext, ("get_link", "getLink"), hypertext_class, index)
         if link is None:
             continue
-        uri = _get_value(link, ("get_uri", "getURI"), 0)
-        label = _get_value(link, ("get_name", "getName")) or uri
+        uri = _call_iface(link, ("get_uri", "getURI"), hyperlink_class, 0)
         safe = _safe_uri(uri)
-        if safe:
-            found.append((str(label or safe), safe))
+        if not safe:
+            continue
+        display = _link_display_text(link, text_iface, atspi)
+        found.append((display or safe, safe))
     return found
+
+
+def _same_link(label, uri):
+    """True when the visible label is just the URL itself."""
+    if not label:
+        return True
+    if label.strip() == uri:
+        return True
+    safe = _safe_uri(label)
+    if not safe:
+        return False
+    return _dedup_key(safe) == _dedup_key(uri) or safe.rstrip("/") == uri.rstrip("/")
+
+
+def format_link_label(label, uri):
+    """Text shown in the chooser: "Display Text → URL" or just the URL."""
+    label = str(label or "").strip()
+    if _same_link(label, uri):
+        return uri
+    return f"{label} \u2192 {uri}"
 
 
 def _attribute_links(attributes, label):
@@ -168,7 +305,9 @@ def _text_attribute_links(text_iface, text):
 
 
 def _object_links(obj):
-    found = []
+    # Primary source: AT-SPI Hypertext/Hyperlink objects. They carry the real
+    # URI and text offsets, so named links ("Read more") are found too.
+    found = list(_hypertext_links(obj))
     role = _get_value(obj, ("get_role_name", "getRoleName")) or ""
     role = str(role).lower()
     name = _accessible_name(obj)
@@ -186,14 +325,15 @@ def _object_links(obj):
         if safe:
             found.append((name or safe, safe))
 
-    found.extend(_hypertext_links(obj))
-
+    # Fallbacks for toolkits without Hypertext support: URI text attributes and
+    # regular-expression detection of literal URLs/@usernames. Duplicates of
+    # Hypertext results are removed by the callers (the first label wins).
     # Telegram can expose the whole message as an accessible name.
     found.extend(_text_links(name))
 
     # A text-only fallback is useful for messages whose URLs are spoken as
     # plain text and are not represented by AT-SPI Hyperlink objects.
-    text_iface = _get_value(obj, ("query_text", "queryText"))
+    text_iface = _text_iface(obj)
     found.extend(_text_attribute_links(text_iface, ""))
     length = _get_value(text_iface, ("get_character_count", "getCharacterCount"))
     text = _get_value(text_iface, ("get_text", "getText"), 0, length if isinstance(length, int) and length >= 0 else -1)
@@ -296,7 +436,7 @@ def show_link_chooser(links, controller):
 
     store = Gtk.ListStore(str, str)
     for label, uri in links:
-        store.append([label, uri])
+        store.append([format_link_label(label, uri), uri])
 
     tree = Gtk.TreeView(model=store)
     tree.set_headers_visible(True)

@@ -8,7 +8,7 @@ It targets Orca 51.1 and the official Telegram Desktop Linux build. Initial manu
 
 ## Project goals
 
-- **Message links — `Insert+L`:** collect links exposed by the current accessible message and present them in a keyboard-operable list. Enter opens the selected HTTP(S) or mailto link in the default handler; Escape closes the dialog.
+- **Message links — `Insert+L`:** collect links exposed by the current accessible message and present them in a keyboard-operable list. Enter opens the selected HTTP(S) or mailto link in the default handler; Escape closes the dialog. Links are read primarily from the AT-SPI `Hypertext`/`Hyperlink` interfaces (URI via `get_uri(0)`, visible text via `Text.get_text(start, end)`), so named links such as «читать всё» are listed as `Display Text → URL`; plain URLs are listed as-is. When `Hypertext` is unavailable, URI text attributes and regular-expression URL detection are used as a fallback.
 - **Message reactions — `Insert+Ctrl+R`:** provide a keyboard-accessible reaction picker.
 - **Channel comments:** make comment controls and navigation accessible.
 - **Bot buttons — `Insert+Ctrl+M`:** list inline/reply keyboard buttons and activate the selected button.
