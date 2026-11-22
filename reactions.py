@@ -35,15 +35,58 @@ def _reaction_label(name):
     return None
 
 
+def _atspi():
+    try:
+        import gi
+        gi.require_version("Atspi", "2.0")
+        from gi.repository import Atspi
+        return Atspi
+    except Exception:
+        return None
+
+
+def _action_iface(obj):
+    """Action interface for pyatspi-style and GI (Orca 51) accessibles.
+
+    Orca 51 hands out ``Atspi.Accessible`` objects that have no
+    ``query_action()``; they expose ``get_action_iface()`` or implement the
+    Atspi.Action methods directly. Missing this made every reaction control
+    look non-actionable.
+    """
+    if obj is None:
+        return None
+    action = _get_value(obj, ("get_action_iface", "query_action", "queryAction"))
+    if action is None and callable(getattr(obj, "get_n_actions", None)):
+        action = obj
+    return action
+
+
+def _action_call(iface, names, *args):
+    value = _get_value(iface, names, *args)
+    atspi = _atspi()
+    if value is None and atspi is not None:
+        for name in names:
+            function = getattr(atspi.Action, name, None)
+            if callable(function):
+                try:
+                    value = function(iface, *args)
+                except Exception:
+                    continue
+                if value is not None:
+                    break
+    return value
+
+
 def _action_index(obj):
-    action = _get_value(obj, ("query_action", "queryAction"))
+    action = _action_iface(obj)
     if action is None:
         return None
-    count = _get_value(action, ("get_n_actions", "getNActions"))
+    count = _action_call(action, ("get_n_actions", "getNActions"))
     if not isinstance(count, int):
         return None
     for i in range(min(max(0, count), 32)):
-        name = _get_value(action, ("get_name", "getName"), i)
+        # get_action_name first: on GI accessibles get_name() is the object name.
+        name = _action_call(action, ("get_action_name", "get_name", "getName"), i)
         if str(name or "").strip().casefold() in _ACTION_WORDS:
             return action, i
     return None
@@ -79,8 +122,8 @@ def collect_reactions(root, max_nodes=300):
 def activate_reaction(item):
     """Activate the explicit AT-SPI action; never simulate a pointer click."""
     _, obj, index = item
-    action = _get_value(obj, ("query_action", "queryAction"))
-    return _get_value(action, ("do_action", "doAction"), index) is True
+    action = _action_iface(obj)
+    return _action_call(action, ("do_action", "doAction"), index) is True
 
 
 def _unnamed_emoji_button(root):
@@ -134,7 +177,7 @@ def try_open_emoji_button(root, controller):
         )
         return True
     iface, index = action
-    if _get_value(iface, ("do_action", "doAction"), index) is True:
+    if _action_call(iface, ("do_action", "doAction"), index) is True:
         controller.present_message_internal(
             "Emoji button activated. Check whether Telegram opened a new panel."
         )
@@ -148,9 +191,13 @@ def show_reactions_for_current_object(root, controller):
     if not reactions:
         if try_open_emoji_button(root, controller):
             return
-        controller.present_message_internal(
-            "No actionable reactions were exposed for this message through AT-SPI."
-        )
+        # Telegram Desktop 7.x does not expose reactions as children of the
+        # message: open its context menu and the reaction picker instead.
+        try:
+            from .reaction_menu import start_context_menu_reaction_flow
+        except ImportError:  # Standalone unit tests from repository root
+            from reaction_menu import start_context_menu_reaction_flow
+        start_context_menu_reaction_flow(root, controller)
         return
     try:
         import gi
